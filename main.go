@@ -1,4 +1,4 @@
-package main
+package kube_port_forward
 
 import (
 	"flag"
@@ -36,79 +36,6 @@ type PortForwardAPodRequest struct {
 	StopCh <-chan struct{}
 	// ReadyCh communicates when the tunnel is ready to receive traffic
 	ReadyCh chan struct{}
-}
-
-func main() {
-	var wg sync.WaitGroup
-	wg.Add(1)
-	var kubeconfig *string
-	if home := homeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// stopCh control the port forwarding lifecycle. When it gets closed the
-	// port forward will terminate
-	stopCh := make(chan struct{}, 1)
-	// readyCh communicate when the port forward is ready to get traffic
-	readyCh := make(chan struct{})
-	// stream is used to tell the port forwarder where to place its output or
-	// where to expect input if needed. For the port forwarding we just need
-	// the output eventually
-	stream := genericclioptions.IOStreams{
-		In:     os.Stdin,
-		Out:    os.Stdout,
-		ErrOut: os.Stderr,
-	}
-
-	// managing termination signal from the terminal. As you can see the stopCh
-	// gets closed to gracefully handle its termination.
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		fmt.Println("Bye...")
-		close(stopCh)
-		wg.Done()
-	}()
-
-	go func() {
-		// PortForward the pod specified from its port 9090 to the local port
-		// 8080
-		err := PortForwardAPod(PortForwardAPodRequest{
-			RestConfig: config,
-			Pod: v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "influxdb-v2",
-					Namespace: "default",
-				},
-			},
-			LocalPort: 8080,
-			PodPort:   9999,
-			Streams:   stream,
-			StopCh:    stopCh,
-			ReadyCh:   readyCh,
-		})
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	select {
-	case <-readyCh:
-		break
-	}
-	println("Port forwarding is ready to get traffic. have fun!")
-
-	wg.Wait()
 }
 
 func PortForwardAPod(req PortForwardAPodRequest) error {
