@@ -11,18 +11,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
 
-func NewRequest(context, namespace, podName string) (PortForwardAPodRequest, error) {
-	home := homeDir()
-	kubeconfig := filepath.Join(home, ".kube", "config")
+func NewRequest(kubeconfig, context, namespace, podName string) (*PortForwardAPodRequest, error) {
 	config, err := buildConfigFromFlags(context, kubeconfig)
 	if err != nil {
 		return nil, err
 	}
-	req := PortForwardAPodRequest{
+	req := &PortForwardAPodRequest{
 		RestConfig: config,
 		Pod: v1.Pod{
 			ObjectMeta: metav1.ObjectMeta {
@@ -40,6 +39,7 @@ func NewRequest(context, namespace, podName string) (PortForwardAPodRequest, err
 	}
 	
 
+	return req, nil
 }
 
 func buildConfigFromFlags(context, kubeconfigPath string) (*rest.Config, error) {
