@@ -8,11 +8,47 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
+
+func NewRequest(context, namespace, podName string) (PortForwardAPodRequest, error) {
+	home := homeDir()
+	kubeconfig := filepath.Join(home, ".kube", "config")
+	config, err := buildConfigFromFlags(context, kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	req := PortForwardAPodRequest{
+		RestConfig: config,
+		Pod: v1.Pod{
+			ObjectMeta: metav1.ObjectMeta {
+				Name: podName,
+				Namespace: namespace,
+			},
+		},
+		Streams: genericclioptions.IOStreams{
+			In: os.Stdin,
+			Out: os.Stdout,
+			ErrOut: os.Stderr,
+		},
+		StopCh: make(chan struct{}, 1),
+		ReadyCh: make(chan struct{}),
+	}
+	
+
+}
+
+func buildConfigFromFlags(context, kubeconfigPath string) (*rest.Config, error) {
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
+		&clientcmd.ConfigOverrides{
+			CurrentContext: context,
+		}).ClientConfig()
+}
 
 type PortForwardAPodRequest struct {
 	// RestConfig is the kubernetes config
