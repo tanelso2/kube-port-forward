@@ -67,6 +67,25 @@ type PortForwardAPodRequest struct {
 	ReadyCh chan struct{}
 }
 
+func WaitForForwarding(req PortForwardAPodRequest) error {
+	readyCh := req.ReadyCh
+	failureCh := make(chan error)
+	go func() {
+		err := PortForwardAPod(req)
+		if err != nil {
+			failureCh <- err
+			panic(err.Error())
+		}
+	}()
+
+	select {
+	case err := <-failureCh:
+		return err
+	case <-readyCh:
+		return nil
+	}
+}
+
 func PortForwardAPod(req PortForwardAPodRequest) error {
 	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward",
 		req.Pod.Namespace, req.Pod.Name)
